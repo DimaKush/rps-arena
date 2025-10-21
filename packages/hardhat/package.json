@@ -7,15 +7,26 @@
     "clean": "hardhat clean",
     "compile": "hardhat build",
     "test": "hardhat test solidity",
-    "deploy": "hardhat ignition deploy ignition/modules/YourContract.ts"
+    "deploy": "hardhat ignition deploy ignition/modules/YourContract.ts",
+    "lint": "eslint . --ext .ts,.js --fix"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
+    "@nomicfoundation/hardhat-verify": "^3.0.3",
     "@types/node": "^24.7.2",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
     "hardhat": "^3.0.7",
+    "prettier": "^3.0.0",
+    "prettier-plugin-solidity": "^2.1.0",
     "typescript": "^5.8.2"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.2"
+    "@nomicfoundation/hardhat-keystore": "^3.0.1",
+    "@openzeppelin/contracts": "^5.0.2",
+    "@pythnetwork/entropy-sdk-solidity": "^2.0.0"
   }
 }

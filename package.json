@@ -8,10 +8,29 @@
     "test": "./test.sh",
     "deploy": "./deploy.sh",
     "start": "cd packages/nextjs && npm run dev",
-    "build": "cd packages/nextjs && npm run build"
+    "build": "cd packages/nextjs && npm run build",
+    "prepare": "husky install",
+    "lint-staged": "lint-staged",
+    "next:lint": "cd packages/nextjs && yarn lint",
+    "next:check-types": "cd packages/nextjs && yarn check-types",
+    "hardhat:lint-staged": "cd packages/hardhat && yarn lint"
   },
   "packageManager": "yarn@3.2.3",
   "engines": {
     "node": ">=20.18.3"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.5",
+    "prettier": "^3.0.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "echo 'Skipping linting for now'"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "echo 'Skipping formatting for now'"
+    ]
   }
 }

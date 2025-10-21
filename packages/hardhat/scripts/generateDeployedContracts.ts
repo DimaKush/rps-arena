@@ -19,57 +19,67 @@ const generatedContractComment = `
 async function generateDeployedContracts(hre: HardhatRuntimeEnvironment) {
   const TARGET_DIR = "../nextjs/contracts/";
   const ARTIFACTS_DIR = "./artifacts";
+  const IGNITION_DIR = "./ignition/deployments";
   
-  // Read deployed contracts from Ignition deployments file
-  const deploymentsPath = "./ignition/deployments/chain-31337/deployed_addresses.json";
+  const allContractsData: Record<string, any> = {};
   
-  if (!fs.existsSync(deploymentsPath)) {
+  // Find all chain deployment directories
+  const chainDirs = fs.readdirSync(IGNITION_DIR, { withFileTypes: true })
+    .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('chain-'))
+    .map(dirent => dirent.name);
+  
+  if (chainDirs.length === 0) {
     console.log("No deployed contracts found. Deploy a contract first.");
     return;
   }
   
-  const deployedAddresses = JSON.parse(fs.readFileSync(deploymentsPath, "utf8"));
-  
-  const deployments = {
-    "YourContractModule": {
-      "YourContract": {
-        type: "contract",
-        address: deployedAddresses["YourContractModule#YourContract"]
-      }
+  for (const chainDir of chainDirs) {
+    const chainId = chainDir.replace('chain-', '');
+    const deployedAddressesPath = `${IGNITION_DIR}/${chainDir}/deployed_addresses.json`;
+    
+    if (!fs.existsSync(deployedAddressesPath)) {
+      console.log(`No deployed addresses found for chain ${chainId}`);
+      continue;
     }
-  };
-
-  const allContractsData: Record<string, any> = {};
-  
-  // Get chain ID (hardcoded for localhost)
-  const chainId = "31337";
-  
-  const contracts: Record<string, any> = {};
-  
-  for (const [moduleName, moduleDeployments] of Object.entries(deployments)) {
-    for (const [contractName, deployment] of Object.entries(moduleDeployments)) {
-      if (deployment.type === "contract") {
-        // Read ABI from artifacts
+    
+    const deployedAddresses = JSON.parse(fs.readFileSync(deployedAddressesPath, "utf8"));
+    const contracts: Record<string, any> = {};
+    
+    // Process each deployed contract
+    for (const [deploymentKey, address] of Object.entries(deployedAddresses)) {
+      const [moduleName, contractName] = deploymentKey.split('#');
+      
+      // Try to find ABI in ignition artifacts first
+      const ignitionArtifactPath = `${IGNITION_DIR}/${chainDir}/artifacts/${deploymentKey}.json`;
+      let artifact;
+      
+      if (fs.existsSync(ignitionArtifactPath)) {
+        artifact = JSON.parse(fs.readFileSync(ignitionArtifactPath, "utf8"));
+      } else {
+        // Fallback to regular artifacts
         const artifactPath = `${ARTIFACTS_DIR}/contracts/${contractName}.sol/${contractName}.json`;
-        
         if (fs.existsSync(artifactPath)) {
-          const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
-          
-          contracts[contractName] = {
-            address: deployment.address,
-            abi: artifact.abi,
-            transactionHash: deployment.transactionHash || "0x..."
-          };
-          
-          console.log(`📝 Added ${contractName} at ${deployment.address}`);
-        } else {
-          console.warn(`⚠️  Artifact not found for ${contractName}`);
+          artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
         }
       }
+      
+      if (artifact) {
+        contracts[contractName] = {
+          address: address,
+          abi: artifact.abi,
+          transactionHash: "0x..."
+        };
+        
+        console.log(`📝 Added ${contractName} at ${address} for chain ${chainId}`);
+      } else {
+        console.warn(`⚠️  Artifact not found for ${contractName} (${deploymentKey})`);
+      }
+    }
+    
+    if (Object.keys(contracts).length > 0) {
+      allContractsData[chainId] = contracts;
     }
   }
-  
-  allContractsData[chainId] = contracts;
   
   // Generate the file content
   const fileContent = Object.entries(allContractsData).reduce((content, [chainId, chainConfig]) => {
