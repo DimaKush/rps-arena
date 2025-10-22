@@ -8,7 +8,7 @@
     "test": "./test.sh",
     "deploy": "./deploy.sh",
     "start": "cd packages/nextjs && yarn dev",
-    "build": "cd packages/nextjs && yarn build",
+    "build": "cd packages/nextjs && next build",
     "prepare": "husky install",
     "lint-staged": "lint-staged",
     "next:lint": "cd packages/nextjs && yarn lint",
