@@ -1,13 +1,13 @@
 /**
  * DON'T MODIFY OR DELETE THIS SCRIPT (unless you know what you're doing)
  *
- * This script generates the file containing the contracts Abi definitions for Hardhat 3.
+ * This script generates the file containing the contracts Abi definitions for both Hardhat 2 and 3.
  * These definitions are used to derive the types needed in the custom scaffold-eth hooks.
  * This script should run after deployment.
  */
 
 import * as fs from "fs";
-import { HardhatRuntimeEnvironment } from "hardhat/types";
+import prettier from "prettier";
 
 const generatedContractComment = `
 /**
@@ -16,10 +16,102 @@ const generatedContractComment = `
  */
 `;
 
-async function generateDeployedContracts(hre: HardhatRuntimeEnvironment) {
-  const TARGET_DIR = "../nextjs/contracts/";
-  const ARTIFACTS_DIR = "./artifacts";
-  const IGNITION_DIR = "./ignition/deployments";
+const DEPLOYMENTS_DIR = "./deployments";
+const ARTIFACTS_DIR = "./artifacts";
+const IGNITION_DIR = "./ignition/deployments";
+
+function getDirectories(path: string) {
+  return fs
+    .readdirSync(path, { withFileTypes: true })
+    .filter(dirent => dirent.isDirectory())
+    .map(dirent => dirent.name);
+}
+
+function getContractNames(path: string) {
+  return fs
+    .readdirSync(path, { withFileTypes: true })
+    .filter(dirent => dirent.isFile() && dirent.name.endsWith(".json"))
+    .map(dirent => dirent.name.split(".")[0]);
+}
+
+function getActualSourcesForContract(sources: Record<string, any>, contractName: string) {
+  for (const sourcePath of Object.keys(sources)) {
+    const sourceName = sourcePath.split("/").pop()?.split(".sol")[0];
+    if (sourceName === contractName) {
+      const contractContent = sources[sourcePath].content as string;
+      const regex = /contract\s+(\w+)\s+is\s+([^{}]+)\{/;
+      const match = contractContent.match(regex);
+
+      if (match) {
+        const inheritancePart = match[2];
+        const inheritedContracts = inheritancePart.split(",").map(contract => `${contract.trim()}.sol`);
+        return inheritedContracts;
+      }
+      return [];
+    }
+  }
+  return [];
+}
+
+function getInheritedFunctions(sources: Record<string, any>, contractName: string) {
+  const actualSources = getActualSourcesForContract(sources, contractName);
+  const inheritedFunctions = {} as Record<string, any>;
+
+  for (const sourceContractName of actualSources) {
+    const sourcePath = Object.keys(sources).find(key => key.includes(`/${sourceContractName}`));
+    if (sourcePath) {
+      const sourceName = sourcePath?.split("/").pop()?.split(".sol")[0];
+      const { abi } = JSON.parse(fs.readFileSync(`${ARTIFACTS_DIR}/${sourcePath}/${sourceName}.json`).toString());
+      for (const functionAbi of abi) {
+        if (functionAbi.type === "function") {
+          inheritedFunctions[functionAbi.name] = sourcePath;
+        }
+      }
+    }
+  }
+
+  return inheritedFunctions;
+}
+
+function getContractDataFromHardhat2Deployments() {
+  if (!fs.existsSync(DEPLOYMENTS_DIR)) {
+    return {};
+  }
+  const output = {} as Record<string, any>;
+  const chainDirectories = getDirectories(DEPLOYMENTS_DIR);
+  
+  for (const chainName of chainDirectories) {
+    let chainId;
+    try {
+      chainId = fs.readFileSync(`${DEPLOYMENTS_DIR}/${chainName}/.chainId`).toString();
+    } catch (error) {
+      console.log(`No chainId file found for ${chainName}`);
+      continue;
+    }
+
+    const contracts = {} as Record<string, any>;
+    for (const contractName of getContractNames(`${DEPLOYMENTS_DIR}/${chainName}`)) {
+      const { abi, address, metadata, receipt } = JSON.parse(
+        fs.readFileSync(`${DEPLOYMENTS_DIR}/${chainName}/${contractName}.json`).toString(),
+      );
+      const inheritedFunctions = metadata ? getInheritedFunctions(JSON.parse(metadata).sources, contractName) : {};
+      contracts[contractName] = { 
+        address, 
+        abi, 
+        inheritedFunctions, 
+        deployedOnBlock: receipt?.blockNumber,
+        transactionHash: receipt?.transactionHash || "0x..."
+      };
+    }
+    output[chainId] = contracts;
+  }
+  return output;
+}
+
+function getContractDataFromHardhat3Ignition() {
+  if (!fs.existsSync(IGNITION_DIR)) {
+    return {};
+  }
   
   const allContractsData: Record<string, any> = {};
   
@@ -27,11 +119,6 @@ async function generateDeployedContracts(hre: HardhatRuntimeEnvironment) {
   const chainDirs = fs.readdirSync(IGNITION_DIR, { withFileTypes: true })
     .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('chain-'))
     .map(dirent => dirent.name);
-  
-  if (chainDirs.length === 0) {
-    console.log("No deployed contracts found. Deploy a contract first.");
-    return;
-  }
   
   for (const chainDir of chainDirs) {
     const chainId = chainDir.replace('chain-', '');
@@ -64,10 +151,23 @@ async function generateDeployedContracts(hre: HardhatRuntimeEnvironment) {
       }
       
       if (artifact) {
+        // Try to get inherited functions from metadata if available
+        let inheritedFunctions = {};
+        if (artifact.metadata) {
+          try {
+            const metadata = JSON.parse(artifact.metadata);
+            inheritedFunctions = getInheritedFunctions(metadata.sources, contractName);
+          } catch (e) {
+            console.warn(`Could not parse metadata for ${contractName}`);
+          }
+        }
+        
         contracts[contractName] = {
           address: address,
           abi: artifact.abi,
-          transactionHash: "0x..."
+          inheritedFunctions,
+          deployedOnBlock: artifact.receipt?.blockNumber,
+          transactionHash: artifact.receipt?.transactionHash || "0x..."
         };
         
         console.log(`📝 Added ${contractName} at ${address} for chain ${chainId}`);
@@ -79,6 +179,24 @@ async function generateDeployedContracts(hre: HardhatRuntimeEnvironment) {
     if (Object.keys(contracts).length > 0) {
       allContractsData[chainId] = contracts;
     }
+  }
+  
+  return allContractsData;
+}
+
+async function generateDeployedContracts(hre: any) {
+  const TARGET_DIR = "../nextjs/contracts/";
+  
+  // Try Hardhat 2 deployments first, then Hardhat 3 Ignition
+  let allContractsData = getContractDataFromHardhat2Deployments();
+  
+  if (Object.keys(allContractsData).length === 0) {
+    allContractsData = getContractDataFromHardhat3Ignition();
+  }
+  
+  if (Object.keys(allContractsData).length === 0) {
+    console.log("No deployed contracts found. Deploy a contract first.");
+    return;
   }
   
   // Generate the file content
@@ -98,7 +216,12 @@ const deployedContracts = {${fileContent}} as const;
 export default deployedContracts satisfies GenericContractsDeclaration;
 `;
 
-  fs.writeFileSync(`${TARGET_DIR}deployedContracts.ts`, finalContent);
+  // Format with Prettier like the original
+  const formattedContent = await prettier.format(finalContent, {
+    parser: "typescript",
+  });
+
+  fs.writeFileSync(`${TARGET_DIR}deployedContracts.ts`, formattedContent);
   
   console.log(`📝 Updated TypeScript contract definition file on ${TARGET_DIR}deployedContracts.ts`);
 }

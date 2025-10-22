@@ -9,11 +9,14 @@ export type ScaffoldConfig = {
   onlyLocalBurnerWallet: boolean;
 };
 
-export const DEFAULT_ALCHEMY_API_KEY = "oKxs-03sij-U_N0iOlrSsZFr29-IqbuF";
+export const DEFAULT_ALCHEMY_API_KEY = "g6JsGkMne1f_Sh2DC7rYh";
 
 const scaffoldConfig = {
   // The networks on which your DApp is live
-  targetNetworks: [chains.hardhat],
+  targetNetworks: [
+    // chains.hardhat,
+    //  chains.sepolia,
+      chains.optimismSepolia],
 
   // The interval at which your front-end polls the RPC servers for new data
   // it has no effect if you only target the local network (default is 4000)
@@ -28,8 +31,8 @@ const scaffoldConfig = {
   // If you want to use a different RPC for a specific network, you can add it here.
   // The key is the chain ID, and the value is the HTTP RPC URL
   rpcOverrides: {
-    // Example:
-    // [chains.mainnet.id]: "https://mainnet.rpc.buidlguidl.com",
+    // Optimism Sepolia RPC overrides - using Alchemy RPC
+    [chains.optimismSepolia.id]: "https://opt-sepolia.g.alchemy.com/v2/g6JsGkMne1f_Sh2DC7rYh",
   },
 
   // This is ours WalletConnect's default project ID.

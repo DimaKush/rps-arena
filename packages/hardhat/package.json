@@ -8,6 +8,7 @@
     "compile": "hardhat build",
     "test": "hardhat test solidity",
     "deploy": "hardhat ignition deploy ignition/modules/YourContract.ts",
+    "generate-contracts": "hardhat run scripts/generateDeployedContracts.ts",
     "lint": "eslint . --ext .ts,.js --fix"
   },
   "devDependencies": {
