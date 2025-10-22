@@ -16,9 +16,12 @@
     "hardhat:lint-staged": "cd packages/hardhat && yarn lint"
   },
   "packageManager": "yarn@3.2.3",
-  "workspaces": [
-    "packages/*"
-  ],
+  "workspaces": {
+    "packages": [
+      "packages/hardhat",
+      "packages/nextjs"
+    ]
+  },
   "engines": {
     "node": ">=20.18.3"
   },
