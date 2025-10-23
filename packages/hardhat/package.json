@@ -1,5 +1,5 @@
 {
-  "name": "@se-2/hardhat",
+  "name": "@rps-arena/hardhat",
   "version": "0.0.1",
   "type": "module",
   "scripts": {
