@@ -1,23 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-// import BattleArena from "./BattleArena";
+import { useEffect, useState } from "react";
 import GameInterface from "./GameInterface";
 import { formatEther, parseEther } from "viem";
 import { useAccount } from "wagmi";
+import { useBlockNumber, usePublicClient } from "wagmi";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth/useDeployedContractInfo";
-import { usePublicClient, useBlockNumber } from "wagmi";
-
 
 type GameState = "idle" | "betting" | "waiting" | "completed" | "error";
 type RPSChoice = "rock" | "paper" | "scissors";
 
 export default function SimpleRPSGame() {
   const { address, isConnected } = useAccount();
-  const { writeContractAsync: writeSimpleRPSAsync, isPending } = useScaffoldWriteContract({ 
-    contractName: "SimpleRPS", 
-    chainId: 11155420 
+  const { writeContractAsync: writeSimpleRPSAsync, isPending } = useScaffoldWriteContract({
+    contractName: "SimpleRPS",
+    chainId: 11155420,
   });
   const { data: deployedContractData } = useDeployedContractInfo({ contractName: "SimpleRPS", chainId: 11155420 });
 
@@ -25,11 +23,8 @@ export default function SimpleRPSGame() {
   const [betAmount, setBetAmount] = useState<string>("1");
   const [betType, setBetType] = useState<"ETH" | "PYUSD">("ETH");
   const [playerChoice, setPlayerChoice] = useState<RPSChoice | null>(null);
-  const [currentGameId, setCurrentGameId] = useState<bigint | null>(null);
   const [battleWinner, setBattleWinner] = useState<string | null>(null);
-  const [showBattle, setShowBattle] = useState(true);
   const [pythResult, setPythResult] = useState<RPSChoice | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Read contract data using Scaffold-ETH
   const { data: minBetEth } = useScaffoldReadContract({
@@ -42,7 +37,7 @@ export default function SimpleRPSGame() {
 
   // Watch for events using manual polling
   useEffect(() => {
-    if (!publicClient || !deployedContractData?.address || !blockNumber) return;
+    if (!publicClient || !deployedContractData?.address || !blockNumber || !playerChoice) return;
 
     const checkEvents = async () => {
       try {
@@ -67,7 +62,6 @@ export default function SimpleRPSGame() {
           const latestLog = gameCreatedLogs[gameCreatedLogs.length - 1];
           const gameId = latestLog.args.gameId as bigint;
           if (gameId) {
-            setCurrentGameId(gameId);
             setGameState("waiting");
           }
         }
@@ -92,7 +86,7 @@ export default function SimpleRPSGame() {
         if (gameCompletedLogs.length > 0) {
           const latestLog = gameCompletedLogs[gameCompletedLogs.length - 1];
           const won = latestLog.args.won;
-          
+
           // Determine Pyth result based on game outcome
           // If player won, Pyth result is the losing choice
           // If player lost, Pyth result is the winning choice
@@ -108,7 +102,7 @@ export default function SimpleRPSGame() {
             else if (playerChoice === "paper") pythResult = "scissors";
             else pythResult = "rock";
           }
-          
+
           setPythResult(pythResult);
           setBattleWinner(won ? "player" : "house");
           setGameState("completed");
@@ -119,7 +113,7 @@ export default function SimpleRPSGame() {
     };
 
     checkEvents();
-  }, [publicClient, deployedContractData?.address, blockNumber]);
+  }, [publicClient, deployedContractData?.address, blockNumber, playerChoice]);
 
   // Handle betting
   const handleBet = async () => {
@@ -127,7 +121,6 @@ export default function SimpleRPSGame() {
       alert("Please select Rock, Paper, or Scissors first!");
       return;
     }
-
 
     try {
       setGameState("betting");
@@ -181,8 +174,6 @@ export default function SimpleRPSGame() {
   const handlePlayAgain = () => {
     setGameState("idle");
     setBattleWinner(null);
-    setShowBattle(true);
-    setCurrentGameId(null);
     setPlayerChoice(null);
     setPythResult(null);
   };
@@ -211,16 +202,6 @@ export default function SimpleRPSGame() {
         onPlayAgain={handlePlayAgain}
         onTryAgain={handleTryAgain}
       />
-
-      {/* {isConnected && (
-        <BattleArena
-          ref={canvasRef}
-          isVisible={showBattle}
-          playerChoice={playerChoice}
-          pythResult={null}
-          battleWinner={battleWinner}
-        />
-      )} */}
     </div>
   );
 }

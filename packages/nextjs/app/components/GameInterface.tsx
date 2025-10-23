@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { formatEther, formatUnits } from "viem";
 import { useBalance } from "wagmi";
 import { EtherInput } from "~~/components/scaffold-eth";
