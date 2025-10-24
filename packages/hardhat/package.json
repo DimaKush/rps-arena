@@ -9,7 +9,8 @@
     "test": "hardhat test solidity",
     "deploy": "hardhat ignition deploy ignition/modules/YourContract.ts",
     "generate-contracts": "hardhat run scripts/generateDeployedContracts.ts",
-    "lint": "eslint . --ext .ts,.js --fix"
+    "lint": "eslint . --ext .ts,.js --fix",
+    "lint-staged": "eslint"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",

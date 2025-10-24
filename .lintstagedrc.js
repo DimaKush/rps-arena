@@ -17,5 +17,5 @@ module.exports = {
     buildNextEslintCommand,
     checkTypesNextCommand,
   ],
-  "packages/hardhat/**/*.{ts,tsx}": [buildHardhatEslintCommand],
+  // "packages/hardhat/**/*.{ts,tsx}": [buildHardhatEslintCommand],
 };

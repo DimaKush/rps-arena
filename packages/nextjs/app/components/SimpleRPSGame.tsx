@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import BattleArena from "./BattleArena";
 import GameInterface from "./GameInterface";
-import { formatEther, parseEther } from "viem";
+import { formatEther, formatUnits, parseEther, parseUnits } from "viem";
 import { useAccount } from "wagmi";
 import { useBlockNumber, usePublicClient } from "wagmi";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
@@ -19,7 +19,12 @@ export default function SimpleRPSGame() {
     contractName: "SimpleRPS",
     chainId: 11155420,
   });
+  const { writeContractAsync: writePYUSDAsync } = useScaffoldWriteContract({
+    contractName: "PYUSD",
+    chainId: 11155420,
+  });
   const { data: deployedContractData } = useDeployedContractInfo({ contractName: "SimpleRPS", chainId: 11155420 });
+  const { data: pyusdContractData } = useDeployedContractInfo({ contractName: "PYUSD", chainId: 11155420 });
 
   const [gameState, setGameState] = useState<GameState>("idle");
   const [betAmount, setBetAmount] = useState<string>("1");
@@ -33,6 +38,27 @@ export default function SimpleRPSGame() {
   const [resetAnimation, setResetAnimation] = useState<boolean>(false);
   const [currentGameId, setCurrentGameId] = useState<bigint | null>(null);
   const [waitingNotificationId, setWaitingNotificationId] = useState<string | null>(null);
+  const [gameStartTime, setGameStartTime] = useState<number | null>(null);
+  const [processedGames, setProcessedGames] = useState<Set<string>>(new Set());
+
+  // Function to reset all game-related states
+  const resetGameState = () => {
+    setGameState("idle");
+    setBattleWinner(null);
+    setPlayerChoice(null);
+    setPythResult(null);
+    setTriggerAnimation(false);
+    setResetAnimation(true);
+    setCurrentGameId(null);
+    setGameStartTime(null);
+    setProcessedGames(new Set()); // Clear processed games tracking
+    setAnimationType("rock_wins");
+    // Clear any waiting notification
+    if (waitingNotificationId) {
+      notification.remove(waitingNotificationId);
+      setWaitingNotificationId(null);
+    }
+  };
 
   // Read contract data using Scaffold-ETH
   const { data: minBetEth } = useScaffoldReadContract({
@@ -44,6 +70,44 @@ export default function SimpleRPSGame() {
   const { data: winMultiplier } = useScaffoldReadContract({
     contractName: "SimpleRPS",
     functionName: "winMultiplier",
+    chainId: 11155420,
+  });
+
+  const { data: commissionRate } = useScaffoldReadContract({
+    contractName: "SimpleRPS",
+    functionName: "commissionRate",
+    chainId: 11155420,
+  });
+
+  const { data: winChance } = useScaffoldReadContract({
+    contractName: "SimpleRPS",
+    functionName: "winChance",
+    chainId: 11155420,
+  });
+
+  // PYUSD token data
+  const { data: pyusdBalance } = useScaffoldReadContract({
+    contractName: "PYUSD",
+    functionName: "balanceOf",
+    args: address ? [address] : ["0x0000000000000000000000000000000000000000"],
+    chainId: 11155420,
+  });
+
+  const { data: pyusdTokenConfig } = useScaffoldReadContract({
+    contractName: "SimpleRPS",
+    functionName: "getTokenConfig",
+    args: pyusdContractData?.address ? [pyusdContractData.address] : ["0x0000000000000000000000000000000000000000"],
+    chainId: 11155420,
+  });
+
+  // Check PYUSD allowance
+  const { data: pyusdAllowance } = useScaffoldReadContract({
+    contractName: "PYUSD",
+    functionName: "allowance",
+    args:
+      address && deployedContractData?.address
+        ? [address, deployedContractData.address]
+        : ["0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000"],
     chainId: 11155420,
   });
 
@@ -121,62 +185,31 @@ export default function SimpleRPSGame() {
   // Watch for events using manual polling
   useEffect(() => {
     if (!publicClient || !deployedContractData?.address || !blockNumber || !playerChoice) {
-      console.log("🔍 Event polling skipped:", {
-        publicClient: !!publicClient,
-        address: !!deployedContractData?.address,
-        blockNumber,
-        playerChoice,
-        gameState,
-      });
       return;
     }
 
     // Don't poll events if we're in idle state and have no current game
     if (gameState === "idle" && currentGameId === null) {
-      console.log("🔍 Event polling skipped - idle state with no current game");
       return;
     }
 
     // Don't poll events if we're in betting state (just started new game)
     if (gameState === "betting") {
-      console.log("🔍 Event polling skipped - betting state, waiting for transaction");
       return;
     }
 
-    console.log("🔍 Starting event polling for gameState:", gameState);
+    // Don't poll events if we're in completed state (game is done)
+    if (gameState === "completed") {
+      return;
+    }
+
+    // Don't poll events if we don't have a player choice (shouldn't happen)
+    if (!playerChoice) {
+      return;
+    }
 
     const checkEvents = async () => {
       try {
-        console.log("🔍 Checking events - current block:", blockNumber, "checking from block:", blockNumber - 50n);
-
-        // Get GameCreated events
-        const gameCreatedLogs = await publicClient.getLogs({
-          address: deployedContractData.address,
-          event: {
-            type: "event",
-            name: "GameCreated",
-            inputs: [
-              { name: "gameId", type: "uint256", indexed: true },
-              { name: "player", type: "address", indexed: true },
-              { name: "betAmount", type: "uint256", indexed: false },
-              { name: "tokenAddress", type: "address", indexed: false },
-            ],
-          },
-          fromBlock: blockNumber - 50n, // Check last 50 blocks for Pyth delay
-          toBlock: "latest",
-        });
-
-        if (gameCreatedLogs.length > 0) {
-          const latestLog = gameCreatedLogs[gameCreatedLogs.length - 1];
-          const gameId = latestLog.args.gameId as bigint;
-          console.log("🎮 GameCreated event found:", { gameId, currentGameState: gameState, currentGameId });
-          if (gameId && gameState === "waiting" && gameId !== currentGameId) {
-            console.log("⏳ Setting game state to waiting, setting currentGameId");
-            setCurrentGameId(gameId);
-            setGameState("waiting");
-          }
-        }
-
         // Get GameCompleted events
         const gameCompletedLogs = await publicClient.getLogs({
           address: deployedContractData.address,
@@ -190,75 +223,80 @@ export default function SimpleRPSGame() {
               { name: "payout", type: "uint256", indexed: false },
             ],
           },
-          fromBlock: blockNumber - 50n, // Check last 50 blocks for Pyth delay
+          fromBlock: blockNumber - 15n,
           toBlock: "latest",
         });
 
-        console.log("📋 GameCompleted logs found:", gameCompletedLogs.length);
-
         if (gameCompletedLogs.length > 0) {
-          const latestLog = gameCompletedLogs[gameCompletedLogs.length - 1];
-          const won = latestLog.args.won;
-          const gameId = latestLog.args.gameId as bigint;
-          console.log("🏁 GameCompleted event found:", {
-            won,
-            currentGameState: gameState,
-            logBlock: latestLog.blockNumber,
-            gameId,
-            currentGameId,
-          });
+          // Look for the specific gameId we're waiting for
+          let currentGameLog = null;
+          if (currentGameId !== null) {
+            currentGameLog = gameCompletedLogs.find(log => {
+              const gameId = log.args.gameId as bigint;
+              const player = log.args.player as string;
+              const matchesGameId = gameId === currentGameId;
+              const matchesAddress = player.toLowerCase() === address?.toLowerCase();
+              return matchesGameId && matchesAddress;
+            });
+          }
 
-          // Additional debugging
-          console.log("🔍 GameCompleted conditions check:", {
-            gameState,
-            gameId,
-            currentGameId,
-            gameIdEqualsCurrent: gameId === currentGameId,
-            currentGameIdNotNull: currentGameId !== null,
-            shouldProcess: gameState === "waiting" && gameId === currentGameId && currentGameId !== null,
-          });
+          if (currentGameLog) {
+            const won = currentGameLog.args.won;
+            const gameId = currentGameLog.args.gameId as bigint;
 
-          if (gameState === "waiting" && gameId === currentGameId && currentGameId !== null) {
-            console.log("🎯 Processing current game result:", { gameId, currentGameId });
-            // Determine Pyth result based on game outcome
-            // If player won, Pyth result is the losing choice
-            // If player lost, Pyth result is the winning choice
-            let pythResult: RPSChoice;
-            if (won) {
-              // Player won, so Pyth result is the choice that loses to player's choice
-              if (playerChoice === "rock") pythResult = "scissors";
-              else if (playerChoice === "paper") pythResult = "rock";
-              else pythResult = "paper";
-            } else {
-              // Player lost, so Pyth result is the choice that beats player's choice
-              if (playerChoice === "rock") pythResult = "paper";
-              else if (playerChoice === "paper") pythResult = "scissors";
-              else pythResult = "rock";
+            // Process the game result only if we're in waiting state
+            if (gameState === "waiting") {
+              const gameIdString = gameId.toString();
+
+              // Prevent processing the same game result multiple times
+              if (processedGames.has(gameIdString)) {
+                return;
+              }
+
+              // Mark this game as processed
+              setProcessedGames(prev => {
+                const newSet = new Set(prev);
+                newSet.add(gameIdString);
+                return newSet;
+              });
+
+              // Determine Pyth result based on game outcome
+              // If player won, Pyth result is the losing choice
+              // If player lost, Pyth result is the winning choice
+              let pythResult: RPSChoice;
+              if (won) {
+                // Player won, so Pyth result is the choice that loses to player's choice
+                if (playerChoice === "rock") pythResult = "scissors";
+                else if (playerChoice === "paper") pythResult = "rock";
+                else pythResult = "paper";
+              } else {
+                // Player lost, so Pyth result is the choice that beats player's choice
+                if (playerChoice === "rock") pythResult = "paper";
+                else if (playerChoice === "paper") pythResult = "scissors";
+                else pythResult = "rock";
+              }
+
+              setPythResult(pythResult);
+              setBattleWinner(won ? "player" : "house");
+
+              // Determine animation type based on result
+              let newAnimationType: "rock_wins" | "paper_wins" | "scissors_wins";
+              if (won) {
+                // Player won, so show their choice winning
+                if (playerChoice === "rock") newAnimationType = "rock_wins";
+                else if (playerChoice === "paper") newAnimationType = "paper_wins";
+                else newAnimationType = "scissors_wins";
+              } else {
+                // Player lost, so show the winning choice
+                if (pythResult === "rock") newAnimationType = "rock_wins";
+                else if (pythResult === "paper") newAnimationType = "paper_wins";
+                else newAnimationType = "scissors_wins";
+              }
+
+              setAnimationType(newAnimationType);
+              setGameState("animating");
+              setTriggerAnimation(true);
             }
-
-            console.log("🎯 Game result:", { playerChoice, pythResult, won });
-
-            setPythResult(pythResult);
-            setBattleWinner(won ? "player" : "house");
-
-            // Determine animation type based on result
-            let newAnimationType: "rock_wins" | "paper_wins" | "scissors_wins";
-            if (won) {
-              // Player won, so show their choice winning
-              if (playerChoice === "rock") newAnimationType = "rock_wins";
-              else if (playerChoice === "paper") newAnimationType = "paper_wins";
-              else newAnimationType = "scissors_wins";
-            } else {
-              // Player lost, so show the winning choice
-              if (pythResult === "rock") newAnimationType = "rock_wins";
-              else if (pythResult === "paper") newAnimationType = "paper_wins";
-              else newAnimationType = "scissors_wins";
-            }
-
-            console.log("🎬 Starting animation with type:", newAnimationType);
-            setAnimationType(newAnimationType);
-            setGameState("animating");
-            setTriggerAnimation(true);
           }
         }
       } catch (error) {
@@ -267,7 +305,117 @@ export default function SimpleRPSGame() {
     };
 
     checkEvents();
-  }, [publicClient, deployedContractData?.address, blockNumber, playerChoice, gameState, currentGameId]);
+  }, [
+    publicClient,
+    deployedContractData?.address,
+    blockNumber,
+    playerChoice,
+    gameState,
+    currentGameId,
+    address,
+    gameStartTime,
+    processedGames,
+  ]);
+
+  // Add more frequent polling when in waiting state
+  useEffect(() => {
+    if (gameState !== "waiting" || !currentGameId) return;
+
+    const interval = setInterval(async () => {
+      if (!publicClient || !deployedContractData?.address || !currentGameId) return;
+
+      try {
+        // Get GameCompleted events with a smaller range for faster response
+        const gameCompletedLogs = await publicClient.getLogs({
+          address: deployedContractData.address,
+          event: {
+            type: "event",
+            name: "GameCompleted",
+            inputs: [
+              { name: "gameId", type: "uint256", indexed: true },
+              { name: "player", type: "address", indexed: true },
+              { name: "won", type: "bool", indexed: false },
+              { name: "payout", type: "uint256", indexed: false },
+            ],
+          },
+          fromBlock: blockNumber ? blockNumber - 10n : "latest", // Check only last 10 blocks for faster response
+          toBlock: "latest",
+        });
+
+        // Look for our specific gameId
+        const currentGameLog = gameCompletedLogs.find(log => {
+          const gameId = log.args.gameId as bigint;
+          const player = log.args.player as string;
+          return gameId === currentGameId && player.toLowerCase() === address?.toLowerCase();
+        });
+
+        if (currentGameLog) {
+          clearInterval(interval);
+
+          const won = currentGameLog.args.won;
+          const gameId = currentGameLog.args.gameId as bigint;
+
+          const gameIdString = gameId.toString();
+
+          // Prevent processing the same game result multiple times
+          if (processedGames.has(gameIdString)) {
+            return;
+          }
+
+          // Mark this game as processed
+          setProcessedGames(prev => {
+            const newSet = new Set(prev);
+            newSet.add(gameIdString);
+            return newSet;
+          });
+
+          // Process the game result
+          let pythResult: RPSChoice;
+          if (won) {
+            if (playerChoice === "rock") pythResult = "scissors";
+            else if (playerChoice === "paper") pythResult = "rock";
+            else pythResult = "paper";
+          } else {
+            if (playerChoice === "rock") pythResult = "paper";
+            else if (playerChoice === "paper") pythResult = "scissors";
+            else pythResult = "rock";
+          }
+
+          setPythResult(pythResult);
+          setBattleWinner(won ? "player" : "house");
+
+          // Determine animation type based on result
+          let newAnimationType: "rock_wins" | "paper_wins" | "scissors_wins";
+          if (won) {
+            if (playerChoice === "rock") newAnimationType = "rock_wins";
+            else if (playerChoice === "paper") newAnimationType = "paper_wins";
+            else newAnimationType = "scissors_wins";
+          } else {
+            if (pythResult === "rock") newAnimationType = "rock_wins";
+            else if (pythResult === "paper") newAnimationType = "paper_wins";
+            else newAnimationType = "scissors_wins";
+          }
+
+          setAnimationType(newAnimationType);
+          setGameState("animating");
+          setTriggerAnimation(true);
+        }
+      } catch (error) {
+        console.error("Error in fast polling:", error);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [
+    gameState,
+    currentGameId,
+    publicClient,
+    deployedContractData?.address,
+    address,
+    playerChoice,
+    processedGames,
+    blockNumber,
+  ]);
 
   // Reset the resetAnimation flag after it's been used
   useEffect(() => {
@@ -306,6 +454,44 @@ export default function SimpleRPSGame() {
     };
   }, [waitingNotificationId]);
 
+  // Handle PYUSD approve
+  const handleApprovePYUSD = async () => {
+    if (!deployedContractData?.address) {
+      alert("Contract not available");
+      return;
+    }
+
+    try {
+      await writePYUSDAsync({
+        functionName: "approve",
+        args: [deployedContractData.address, 2n ** 256n - 1n], // Max uint256
+      });
+      notification.success("PYUSD approved successfully!");
+    } catch (error) {
+      console.error("Error approving PYUSD:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
+  // Handle PYUSD drip (mint 420 PYUSD to user)
+  const handleDripPYUSD = async () => {
+    if (!pyusdContractData?.address) {
+      alert("PYUSD contract not available");
+      return;
+    }
+
+    try {
+      await writePYUSDAsync({
+        functionName: "mint",
+        args: [address, parseUnits("420", 6)], // 420 PYUSD with 6 decimals
+      });
+      notification.success("420 PYUSD dripped successfully! 💧");
+    } catch (error) {
+      console.error("Error dripping PYUSD:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
   // Handle betting
   const handleBet = async () => {
     if (!address || !playerChoice) {
@@ -313,17 +499,17 @@ export default function SimpleRPSGame() {
       return;
     }
 
-    console.log("🎯 Placing bet:", { playerChoice, betAmount, betType, gameState });
-
     try {
       // Reset ALL animation-related states before placing bet
-      console.log("🎯 handleBet: Resetting states before bet", { currentGameId, gameState });
       setGameState("betting");
       setCurrentGameId(null);
+      setGameStartTime(Date.now());
+      setProcessedGames(new Set()); // Clear processed games tracking
       setTriggerAnimation(false);
       setResetAnimation(false);
       setAnimationType("rock_wins"); // Reset to default
-      console.log("⏳ Game state set to betting, reset all animation states");
+      setBattleWinner(null);
+      setPythResult(null);
 
       // Generate random number for entropy
       const userRandomNumber = crypto.getRandomValues(new Uint8Array(32));
@@ -332,9 +518,58 @@ export default function SimpleRPSGame() {
         .join("")}`;
 
       if (betType === "PYUSD") {
-        alert("PYUSD betting not implemented yet. Please use ETH.");
-        setGameState("idle");
-        return;
+        if (!pyusdContractData?.address || !pyusdTokenConfig) {
+          alert("PYUSD token not available");
+          setGameState("idle");
+          return;
+        }
+
+        const betAmountWei = parseUnits(betAmount, 6); // PYUSD has 6 decimals
+
+        if (betAmountWei < pyusdTokenConfig.minBet) {
+          alert(`Minimum bet is ${formatUnits(pyusdTokenConfig.minBet, 6)} PYUSD`);
+          setGameState("idle");
+          return;
+        }
+
+        if (!pyusdBalance || pyusdBalance < betAmountWei) {
+          alert("Insufficient PYUSD balance");
+          setGameState("idle");
+          return;
+        }
+
+        // Check if PYUSD is approved
+        if (!pyusdAllowance || pyusdAllowance < betAmountWei) {
+          alert("Please approve PYUSD spending first by clicking the 'Approve PYUSD' button");
+          setGameState("idle");
+          return;
+        }
+
+        // Play game with PYUSD
+        const txResult = await writeSimpleRPSAsync({
+          functionName: "playGameWithToken",
+          args: [pyusdContractData.address, betAmountWei, userRandomHex as `0x${string}`],
+          value: entropyFee, // Still need to pay entropy fee in ETH
+        });
+
+        // Get the gameId from the transaction receipt
+        if (txResult && publicClient && deployedContractData?.address) {
+          const receipt = await publicClient.waitForTransactionReceipt({ hash: txResult });
+
+          // Find GameCreated event in the transaction logs
+          const gameCreatedLog = receipt.logs.find(log => {
+            // Check if this log is from our contract and has the right number of topics
+            return log.address.toLowerCase() === deployedContractData.address.toLowerCase() && log.topics.length === 3; // GameCreated has 3 topics (event signature + 2 indexed params)
+          });
+
+          if (gameCreatedLog && gameCreatedLog.topics[1]) {
+            // Decode the gameId from the first indexed parameter (gameId)
+            const gameId = BigInt(gameCreatedLog.topics[1]);
+            setCurrentGameId(gameId);
+          }
+        }
+
+        setGameState("waiting");
       } else {
         if (!minBetEth) return;
 
@@ -347,14 +582,29 @@ export default function SimpleRPSGame() {
         }
 
         // Play game with ETH
-        console.log("🚀 Calling playGameWithETH contract function");
-        await writeSimpleRPSAsync({
+        const txResult = await writeSimpleRPSAsync({
           functionName: "playGameWithETH",
           args: [userRandomHex as `0x${string}`],
           value: betAmountWei, // ETH value for ETH game
         });
 
-        console.log("✅ Contract call successful, setting state to waiting");
+        // Get the gameId from the transaction receipt
+        if (txResult && publicClient && deployedContractData?.address) {
+          const receipt = await publicClient.waitForTransactionReceipt({ hash: txResult });
+
+          // Find GameCreated event in the transaction logs
+          const gameCreatedLog = receipt.logs.find(log => {
+            // Check if this log is from our contract and has the right number of topics
+            return log.address.toLowerCase() === deployedContractData.address.toLowerCase() && log.topics.length === 3; // GameCreated has 3 topics (event signature + 2 indexed params)
+          });
+
+          if (gameCreatedLog && gameCreatedLog.topics[1]) {
+            // Decode the gameId from the first indexed parameter (gameId)
+            const gameId = BigInt(gameCreatedLog.topics[1]);
+            setCurrentGameId(gameId);
+          }
+        }
+
         setGameState("waiting");
       }
     } catch (error) {
@@ -373,46 +623,12 @@ export default function SimpleRPSGame() {
     );
   }
 
-  const handlePlayAgain = () => {
-    console.log("🔄 Play Again clicked - resetting game state", { currentGameId, gameState });
-    setGameState("idle");
-    setBattleWinner(null);
-    setPlayerChoice(null);
-    setPythResult(null);
-    setTriggerAnimation(false);
-    setResetAnimation(true);
-    setCurrentGameId(null);
-    setCurrentScenario(prev => (prev + 1) % 3); // Cycle between 3 scenarios
-    setAnimationType("rock_wins"); // Reset animation type
-    // Clear any waiting notification
-    if (waitingNotificationId) {
-      notification.remove(waitingNotificationId);
-      setWaitingNotificationId(null);
-    }
-    console.log("✅ Game state reset to idle");
+  const handleResetGame = () => {
+    resetGameState();
+    setCurrentScenario(prev => (prev + 1) % 2); // Cycle between 2 scenarios
   };
 
-  const handleTryAgain = () => {
-    console.log("🔄 Try Again clicked - resetting game state");
-    setGameState("idle");
-    setTriggerAnimation(false);
-    setResetAnimation(true);
-    setCurrentGameId(null);
-    // Reset all animation-related states
-    setBattleWinner(null);
-    setPythResult(null);
-    setPlayerChoice(null); // Also reset player choice
-    setAnimationType("rock_wins");
-    // Clear any waiting notification
-    if (waitingNotificationId) {
-      notification.remove(waitingNotificationId);
-      setWaitingNotificationId(null);
-    }
-    console.log("✅ Game state reset to idle");
-  };
-
-  const handleBattleComplete = (winner: string) => {
-    console.log("Battle animation complete, winner:", winner);
+  const handleBattleComplete = () => {
     setGameState("completed");
     setTriggerAnimation(false); // Reset trigger to prevent re-animation
     // Don't reset resetAnimation here - keep it for next game
@@ -453,13 +669,20 @@ export default function SimpleRPSGame() {
               minBetEth={minBetEth}
               entropyFee={entropyFee}
               winMultiplier={winMultiplier}
+              commissionRate={commissionRate}
+              winChance={winChance}
               isPending={isPending}
+              pyusdBalance={pyusdBalance}
+              pyusdTokenConfig={pyusdTokenConfig}
+              pyusdAllowance={pyusdAllowance}
+              onApprovePYUSD={handleApprovePYUSD}
+              onDripPYUSD={handleDripPYUSD}
               onPlayerChoiceChange={setPlayerChoice}
               onBetAmountChange={setBetAmount}
               onBetTypeChange={setBetType}
               onBet={handleBet}
-              onPlayAgain={handlePlayAgain}
-              onTryAgain={handleTryAgain}
+              onPlayAgain={handleResetGame}
+              onTryAgain={handleResetGame}
             />
           </div>
         </div>

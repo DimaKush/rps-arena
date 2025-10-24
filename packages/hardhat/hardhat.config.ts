@@ -2,9 +2,10 @@ import type { HardhatUserConfig } from "hardhat/config";
 import { configVariable } from "hardhat/config";
 import hardhatIgnition from "@nomicfoundation/hardhat-ignition";
 import hardhatKeystore from "@nomicfoundation/hardhat-keystore";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 const config: HardhatUserConfig = {
-  plugins: [hardhatIgnition, hardhatKeystore],
+  plugins: [hardhatIgnition, hardhatKeystore, hardhatVerify],
   solidity: {
     compilers: [
       {
@@ -36,6 +37,11 @@ const config: HardhatUserConfig = {
       type: "http",
       url: "http://127.0.0.1:8545", // Hardhat fork
       accounts: [configVariable("DEPLOYER_PRIVATE_KEY")],
+    },
+  },
+  verify: {
+    etherscan: {
+      apiKey: configVariable("ETHERSCAN_API_KEY"),
     },
   },
 };

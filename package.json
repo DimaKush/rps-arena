@@ -13,6 +13,7 @@
     "start": "yarn workspace @rps-arena/nextjs dev",
     "next:check-types": "yarn workspace @rps-arena/nextjs check-types",
     "next:lint": "yarn workspace @rps-arena/nextjs lint",
+    "hardhat:lint-staged": "yarn workspace @rps-arena/hardhat lint-staged",
     "vercel": "yarn workspace @rps-arena/nextjs vercel",
     "ipfs": "yarn workspace @rps-arena/nextjs ipfs",
     "postinstall": "husky",
