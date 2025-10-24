@@ -1,13 +1,28 @@
 "use client";
 
-import { formatEther, formatUnits } from "viem";
+import { formatEther, formatUnits, parseEther } from "viem";
 import { useBalance } from "wagmi";
 import { EtherInput } from "~~/components/scaffold-eth";
+
+// Helper function to format ETH with limited decimal places
+const formatEthWithDecimals = (value: bigint, decimals: number = 6) => {
+  const formatted = formatEther(value);
+  const num = parseFloat(formatted);
+  return num.toFixed(decimals);
+};
+
+// Helper function to calculate winnings
+const calculateWinnings = (betAmount: string, winMultiplier: bigint | undefined) => {
+  if (!winMultiplier) return "0";
+  const betAmountWei = parseEther(betAmount);
+  const winningsWei = betAmountWei * winMultiplier;
+  return formatEthWithDecimals(winningsWei);
+};
 
 // PYUSD token address on Optimism Sepolia
 const PYUSD_ADDRESS = "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9";
 
-type GameState = "idle" | "betting" | "waiting" | "completed" | "error";
+type GameState = "idle" | "betting" | "waiting" | "animating" | "completed" | "error";
 type RPSChoice = "rock" | "paper" | "scissors";
 
 interface GameInterfaceProps {
@@ -18,6 +33,8 @@ interface GameInterfaceProps {
   battleWinner: string | null;
   pythResult: RPSChoice | null;
   minBetEth: bigint | undefined;
+  entropyFee: bigint;
+  winMultiplier: bigint | undefined;
   isPending: boolean;
   onPlayerChoiceChange: (choice: RPSChoice) => void;
   onBetAmountChange: (amount: string) => void;
@@ -35,6 +52,8 @@ export default function GameInterface({
   battleWinner,
   pythResult,
   minBetEth,
+  entropyFee,
+  winMultiplier,
   isPending,
   onPlayerChoiceChange,
   onBetAmountChange,
@@ -50,13 +69,10 @@ export default function GameInterface({
 
   return (
     <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mb-8">
-      <h2 className="text-2xl font-semibold mb-4">Simple RPS Game</h2>
-
       <div className="mb-4">
         <p className="text-sm text-gray-400 mb-2">
           PYUSD Balance: {pyusdBalance ? formatUnits(pyusdBalance.value, 6) : "0"} PYUSD
         </p>
-        <p className="text-sm text-gray-400">Min Bet ETH: {minBetEth ? formatEther(minBetEth) : "0.001"} ETH</p>
       </div>
 
       {gameState === "idle" && (
@@ -126,7 +142,15 @@ export default function GameInterface({
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2">Bet Amount ({betType})</label>
             {betType === "ETH" ? (
-              <EtherInput value={betAmount} onChange={value => onBetAmountChange(value)} placeholder="0.001" />
+              <div className="relative">
+                <EtherInput value={betAmount} onChange={value => onBetAmountChange(value)} placeholder="0.001" />
+                {betAmount && minBetEth && entropyFee && parseEther(betAmount) < minBetEth + entropyFee && (
+                  <div className="absolute top-full left-0 mt-1 p-2 bg-yellow-600 text-white text-xs rounded shadow-lg z-10 max-w-xs">
+                    ⚠️ Minimum bet: {formatEthWithDecimals(minBetEth + entropyFee)} ETH (includes{" "}
+                    {formatEthWithDecimals(entropyFee)} ETH entropy fee)
+                  </div>
+                )}
+              </div>
             ) : (
               <input
                 type="number"
@@ -152,14 +176,28 @@ export default function GameInterface({
 
       {gameState === "betting" && (
         <div className="text-center">
+          <div className="mb-4 p-3 bg-gray-700 rounded">
+            <p className="text-sm text-gray-300 mb-2">Your Choice:</p>
+            <p className="text-lg font-semibold text-yellow-400">
+              {playerChoice === "rock" && "🪨 Rock"}
+              {playerChoice === "paper" && "📄 Paper"}
+              {playerChoice === "scissors" && "✂️ Scissors"}
+            </p>
+          </div>
           <p className="text-yellow-400">Processing bet...</p>
         </div>
       )}
 
-      {gameState === "waiting" && (
+      {gameState === "animating" && (
         <div className="text-center">
-          <p className="text-blue-400">Waiting for Pyth Entropy...</p>
-          <p className="text-sm text-gray-400 mt-2">This may take a few seconds</p>
+          <div className="mb-4 p-3 bg-gray-700 rounded">
+            <p className="text-sm text-gray-300 mb-2">Your Choice:</p>
+            <p className="text-lg font-semibold text-yellow-400">
+              {playerChoice === "rock" && "🪨 Rock"}
+              {playerChoice === "paper" && "📄 Paper"}
+              {playerChoice === "scissors" && "✂️ Scissors"}
+            </p>
+          </div>
         </div>
       )}
 
@@ -181,7 +219,7 @@ export default function GameInterface({
           </p>
           <p className="text-sm text-gray-400">
             {battleWinner === "player"
-              ? "2x payout incoming!"
+              ? `You won ${calculateWinnings(betAmount, winMultiplier)} ETH!`
               : battleWinner === "draw"
                 ? "Your bet is returned!"
                 : "Better luck next time!"}

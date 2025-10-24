@@ -1,0 +1,136 @@
+export interface BattleScenario {
+  id: string;
+  name: string;
+  description: string;
+  expectedWinner: string;
+  initialPositions: Array<{ x: number; y: number; type: string }>;
+  movementPatterns: {
+    [key: string]: {
+      rock: { vx: number; vy: number };
+      paper: { vx: number; vy: number };
+      scissors: { vx: number; vy: number };
+      expectedWinner: string;
+    };
+  };
+}
+
+export const battleScenarios = {
+  scenarios: [
+    {
+      id: "scenario1",
+      name: "Rock Dominance",
+      description: "Rock units move aggressively, Paper defensive, Scissors retreat",
+      expectedWinner: "rock",
+      initialPositions: [
+        { x: 50, y: 50, type: "rock" },
+        { x: 100, y: 80, type: "rock" },
+        { x: 150, y: 110, type: "rock" },
+        { x: 200, y: 140, type: "rock" },
+        { x: 250, y: 170, type: "rock" },
+        { x: 300, y: 200, type: "rock" },
+        { x: 350, y: 230, type: "rock" },
+        { x: 400, y: 260, type: "rock" },
+        { x: 450, y: 290, type: "rock" },
+        { x: 500, y: 320, type: "rock" },
+        { x: 550, y: 50, type: "paper" },
+        { x: 500, y: 80, type: "paper" },
+        { x: 450, y: 110, type: "paper" },
+        { x: 400, y: 140, type: "paper" },
+        { x: 350, y: 170, type: "paper" },
+        { x: 300, y: 200, type: "paper" },
+        { x: 250, y: 230, type: "paper" },
+        { x: 200, y: 260, type: "paper" },
+        { x: 150, y: 290, type: "paper" },
+        { x: 100, y: 320, type: "paper" },
+        { x: 300, y: 50, type: "scissors" },
+        { x: 320, y: 100, type: "scissors" },
+        { x: 340, y: 150, type: "scissors" },
+        { x: 360, y: 200, type: "scissors" },
+        { x: 380, y: 250, type: "scissors" },
+        { x: 400, y: 300, type: "scissors" },
+        { x: 420, y: 350, type: "scissors" },
+        { x: 440, y: 400, type: "scissors" },
+        { x: 460, y: 450, type: "scissors" },
+        { x: 480, y: 500, type: "scissors" },
+      ],
+      movementPatterns: {
+        scissors_wins: {
+          rock: { vx: 1.1, vy: 1.0 },
+          paper: { vx: -0.8, vy: 0.9 },
+          scissors: { vx: -0.9, vy: -0.8 },
+          expectedWinner: "rock",
+        },
+        rock_wins: {
+          rock: { vx: -0.3, vy: -0.9 },
+          paper: { vx: -1.2, vy: 1.1 },
+          scissors: { vx: 0.6, vy: 0.4 },
+          expectedWinner: "rock",
+        },
+        paper_wins: {
+          rock: { vx: 0.4, vy: 0.2 },
+          paper: { vx: 0.3, vy: -0.4 },
+          scissors: { vx: 0.9, vy: -1.5 },
+          expectedWinner: "paper",
+        },
+      },
+    },
+    {
+      id: "scenario2",
+      name: "Circular Formation",
+      description: "Units arranged in circular formation with chaotic movement patterns",
+      expectedWinner: "paper",
+      initialPositions: [
+        { x: 300, y: 100, type: "rock" },
+        { x: 350, y: 150, type: "rock" },
+        { x: 400, y: 200, type: "rock" },
+        { x: 420, y: 250, type: "rock" },
+        { x: 400, y: 300, type: "rock" },
+        { x: 350, y: 350, type: "rock" },
+        { x: 300, y: 400, type: "rock" },
+        { x: 250, y: 350, type: "rock" },
+        { x: 200, y: 300, type: "rock" },
+        { x: 180, y: 250, type: "rock" },
+        { x: 200, y: 200, type: "rock" },
+        { x: 250, y: 150, type: "rock" },
+        { x: 300, y: 200, type: "paper" },
+        { x: 320, y: 250, type: "paper" },
+        { x: 300, y: 300, type: "paper" },
+        { x: 250, y: 300, type: "paper" },
+        { x: 200, y: 250, type: "paper" },
+        { x: 250, y: 200, type: "paper" },
+        { x: 300, y: 250, type: "paper" },
+        { x: 350, y: 200, type: "paper" },
+        { x: 350, y: 300, type: "paper" },
+        { x: 250, y: 250, type: "paper" },
+        { x: 100, y: 100, type: "scissors" },
+        { x: 500, y: 100, type: "scissors" },
+        { x: 100, y: 400, type: "scissors" },
+        { x: 500, y: 400, type: "scissors" },
+        { x: 50, y: 250, type: "scissors" },
+        { x: 550, y: 250, type: "scissors" },
+        { x: 300, y: 50, type: "scissors" },
+        { x: 300, y: 450, type: "scissors" },
+      ],
+      movementPatterns: {
+        scissors_wins: {
+          rock: { vx: 1.7, vy: 0.6 },
+          paper: { vx: -0.9, vy: 0.5 },
+          scissors: { vx: -1.0, vy: -1.2 },
+          expectedWinner: "paper",
+        },
+        rock_wins: {
+          rock: { vx: 0.8, vy: 0.6 },
+          paper: { vx: -0.5, vy: 0.3 },
+          scissors: { vx: -0.2, vy: -0.4 },
+          expectedWinner: "scissors",
+        },
+        paper_wins: {
+          rock: { vx: -0.8, vy: -0.2 },
+          paper: { vx: 1.2, vy: 0.8 },
+          scissors: { vx: -0.6, vy: 0.9 },
+          expectedWinner: "paper",
+        },
+      },
+    },
+  ],
+};
