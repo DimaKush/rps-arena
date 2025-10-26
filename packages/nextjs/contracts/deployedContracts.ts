@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   11155420: {
     PYUSD: {
-      address: "0x681Ee734BB3E5D9E258dd9E72Faf7D8B0a5614B0",
+      address: "0x3DD95a92F6a60617D41bDc3D4A639e5442c923Fe",
       abi: [
         {
           inputs: [],
@@ -432,7 +432,7 @@ const deployedContracts = {
       transactionHash: "0x...",
     },
     SimpleRPS: {
-      address: "0xb69da3125c29fbdCc3B2F327960F1Faf1858447B",
+      address: "0x12B8738483CA1B0c23E2715595015Cb6FA673d31",
       abi: [
         {
           inputs: [
