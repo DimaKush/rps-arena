@@ -211,7 +211,6 @@ contract SimpleRPS is Ownable, IEntropyConsumer, ReentrancyGuard {
         address providerAddress,
         bytes32 randomNumber
     ) internal override {
-        require(msg.sender == address(entropyContract), "Only Pyth Entropy can call this");
         providerAddress;
         // Get game ID from sequence number
         uint256 gameId = sequenceToGameId[sequenceNumber];
