@@ -72,47 +72,25 @@ class Unit {
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    ctx.beginPath();
-
-    if (this.type === "rock") {
-      // Rock - brown circle with gradient
-      const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
-      gradient.addColorStop(0, "#A0522D");
-      gradient.addColorStop(1, "#8B4513");
-      ctx.fillStyle = gradient;
-      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-    } else if (this.type === "paper") {
-      // Paper - golden rectangle with gradient
-      const gradient = ctx.createLinearGradient(
-        this.x - this.size,
-        this.y - this.size,
-        this.x + this.size,
-        this.y + this.size,
-      );
-      gradient.addColorStop(0, "#FFD700");
-      gradient.addColorStop(1, "#DAA520");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
-    } else if (this.type === "scissors") {
-      // Scissors - red triangle with gradient
-      const gradient = ctx.createLinearGradient(this.x, this.y - this.size, this.x, this.y + this.size);
-      gradient.addColorStop(0, "#FF6347");
-      gradient.addColorStop(1, "#DC143C");
-      ctx.fillStyle = gradient;
-      ctx.moveTo(this.x, this.y - this.size);
-      ctx.lineTo(this.x - this.size, this.y + this.size);
-      ctx.lineTo(this.x + this.size, this.y + this.size);
-      ctx.closePath();
-    }
-
-    ctx.fill();
+    // Draw emoji instead of geometric shapes
+    const emojiSize = this.size * 2; // Make emoji larger than the old shapes
+    ctx.font = `${emojiSize}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
 
     // Add glow effect
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
     ctx.shadowColor = this.type === "rock" ? "#8B4513" : this.type === "paper" ? "#DAA520" : "#DC143C";
-    ctx.shadowBlur = 10;
-    ctx.stroke();
+    ctx.shadowBlur = 15;
+
+    if (this.type === "rock") {
+      ctx.fillText("🪨", this.x, this.y);
+    } else if (this.type === "paper") {
+      ctx.fillText("📄", this.x, this.y);
+    } else if (this.type === "scissors") {
+      ctx.fillText("✂️", this.x, this.y);
+    }
+
+    // Reset shadow
     ctx.shadowBlur = 0;
   }
 
