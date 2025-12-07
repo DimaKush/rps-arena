@@ -993,6 +993,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rps-arena/hardhat@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "@rps-arena/hardhat@workspace:."
+  dependencies:
+    "@nomicfoundation/hardhat-ignition": ^3.0.3
+    "@nomicfoundation/hardhat-keystore": ^3.0.1
+    "@nomicfoundation/hardhat-verify": ^3.0.3
+    "@openzeppelin/contracts": ^5.0.2
+    "@pythnetwork/entropy-sdk-solidity": ^2.0.0
+    "@types/node": ^24.7.2
+    "@typescript-eslint/eslint-plugin": ^8.0.0
+    "@typescript-eslint/parser": ^8.0.0
+    eslint: ^9.0.0
+    eslint-config-prettier: ^9.0.0
+    eslint-plugin-prettier: ^5.0.0
+    hardhat: ^3.0.7
+    prettier: ^3.0.0
+    prettier-plugin-solidity: ^2.1.0
+    typescript: ^5.8.2
+  languageName: unknown
+  linkType: soft
+
 "@scure/base@npm:~1.1.6":
   version: 1.1.9
   resolution: "@scure/base@npm:1.1.9"
@@ -1027,28 +1049,6 @@ __metadata:
   checksum: dbb0b27df753eb6c6380010b25cc9a9ea31f9cb08864fc51e69e5880ff7e2b8f85b72caea1f1f28af165e83b72c48dd38617e43fc632779d025b50ba32ea759e
   languageName: node
   linkType: hard
-
-"@se-2/hardhat@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "@se-2/hardhat@workspace:."
-  dependencies:
-    "@nomicfoundation/hardhat-ignition": ^3.0.3
-    "@nomicfoundation/hardhat-keystore": ^3.0.1
-    "@nomicfoundation/hardhat-verify": ^3.0.3
-    "@openzeppelin/contracts": ^5.0.2
-    "@pythnetwork/entropy-sdk-solidity": ^2.0.0
-    "@types/node": ^24.7.2
-    "@typescript-eslint/eslint-plugin": ^8.0.0
-    "@typescript-eslint/parser": ^8.0.0
-    eslint: ^9.0.0
-    eslint-config-prettier: ^9.0.0
-    eslint-plugin-prettier: ^5.0.0
-    hardhat: ^3.0.7
-    prettier: ^3.0.0
-    prettier-plugin-solidity: ^2.1.0
-    typescript: ^5.8.2
-  languageName: unknown
-  linkType: soft
 
 "@sentry/core@npm:^9.4.0":
   version: 9.46.0
